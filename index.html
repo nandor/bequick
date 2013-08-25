@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title> BeQuick! </title>
+        <link rel = "stylesheet" type = "text/css" href = "style.css" />
+        <script type = "text/javascript" src = "lib/glMatrix.js"></script>
+        <script type = "text/javascript" src = "lib/jquery.js"></script>
+        <script type = "text/javascript" src = "util.js"></script>
+        <script type = "text/javascript" src = "map.js"></script>
+        <script type = "text/javascript" src = "particles.js"></script>
+        <script type = "text/javascript" src = "engine.js"></script>     
+        <script type = "x-shader/x-vertex" id = "terrain-vs">
+            attribute vec3 aPosition;
+            attribute vec3 aNormal;
+            attribute vec2 aUV;
+        
+            uniform mat4 uModel;
+            uniform mat4 uVP;
+            
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying vec2 vUV;
+            
+            void main(void) {
+                vUV       = aUV;
+                vNormal   = (uModel * vec4(aNormal, 0.0)).xyz;
+                vPosition = (uModel * vec4(aPosition, 1.0)).xyz;
+                gl_Position = uVP * vec4(vPosition, 1.0);
+            }
+        </script>
+        <script type = "x-shader/x-vertex" id = "terrain-fs">
+            precision mediump float;
+            
+            const vec4  LIGHT_DIFFUSE   = vec4(1.0, 1.0, 1.0, 1.0);
+            const vec4  FOG_COLOR       = vec4(0.3, 0.3, 0.3, 1.0);
+            const float FOG_DIST        = 11.0;
+            
+            uniform sampler2D   uTexture;
+            uniform vec3        uPosition;
+            uniform vec4        uColor;
+            uniform float       uModulate;
+            
+            varying vec3        vPosition;
+            varying vec3        vNormal;
+            varying vec2        vUV;
+            
+            void main(void) {
+                vec3 lightDir, viewDir;
+                vec4 color = vec4(0.0);
+                float dist, angle, att, spec, dd, fog;
+                
+                lightDir = uPosition - vPosition;               
+                dist = length(lightDir);
+                lightDir /= dist;
+                
+                angle = max(dot(vNormal, lightDir), 0.0); 
+                att = max(1.0 - dist / 1000.0, 0.0) * angle;
+                dd = length(vPosition.xz - uPosition.xz);      
+                
+                color = texture2D(uTexture, vec2(vPosition.y / 5.0, 0.0));
+                if (dd < 0.7) {
+                    color = mix(color, uColor, (1.0 - (dd + uModulate * 0.3) / (0.7 + uModulate * 0.3)));
+                }
+                 
+                fog = max(0.0, (dist - FOG_DIST) / FOG_DIST);
+                gl_FragColor = mix(color * LIGHT_DIFFUSE * att, FOG_COLOR, fog);
+            }
+        </script>
+        <script type = "x-shader/x-vertex" id = "particle-vs">
+            attribute vec3 aPosition;
+            attribute vec3 aUV;
+        
+            uniform mat4 uVP;
+            uniform mat4 uModel;
+            
+            varying vec3 vUV;
+            
+            void main(void) {
+                vUV = aUV;
+                gl_Position = uVP * uModel * vec4(aPosition, 1.0);
+            }
+        </script>
+        <script type = "x-shader/x-vertex" id = "particle-fs">
+            precision mediump float;
+            uniform sampler2D uTexture;
+            uniform vec4 uColor;
+            varying vec3 vUV;
+            
+            void main(void) {
+                vec4 tex = texture2D(uTexture, vUV.xy);
+                gl_FragColor = vec4(tex.rgb * uColor.rgb, tex.a * vUV.z);
+            }
+        </script>
+        <script type = "x-shader/x-vertex" id = "object-vs">
+            attribute vec3 aPosition;
+            attribute vec3 aNormal;
+            attribute vec3 aUV;
+        
+            uniform mat4 uVP;
+            uniform mat4 uModel;
+            
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying vec3 vUV;
+            
+            void main(void) {
+                vUV = aUV;
+                vNormal   = (uModel * vec4(aNormal, 0.0)).xyz;
+                vPosition = (uModel * vec4(aPosition, 1.0)).xyz;
+                gl_Position = uVP * vec4(vPosition, 1.0);
+            }
+        </script>
+        <script type = "x-shader/x-vertex" id = "object-fs">
+            precision mediump float;
+            
+            const vec4  LIGHT_DIFFUSE = vec4(1.0, 1.0, 1.0, 1.0);
+            
+            uniform vec3 uPosition;
+            uniform vec4 uColor;
+                        
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying vec3 vUV;
+            
+            void main(void) {
+                vec3 lightDir;
+                vec4 color = vec4(0.0);
+                float dist, angle, att, spec, dd, fog;
+                
+                lightDir = uPosition - vPosition;               
+                dist = length(lightDir);
+                lightDir /= dist;
+                
+                angle = max(dot(vNormal, lightDir), 0.0); 
+                att = max(1.0 - dist / 1000.0, 0.0) * angle;
+                                 
+                gl_FragColor = uColor * LIGHT_DIFFUSE * att;
+            }
+        </script>
+        <script type = "x-shader/x-vertex" id = "overlay-vs">
+            attribute vec3 aPosition;
+            attribute vec3 aNormal;
+            attribute vec3 aUV;
+        
+            uniform mat4 uVP;
+            uniform mat4 uModel;
+            
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying vec3 vUV;
+            
+            void main(void) {
+                vUV = aUV;
+                vNormal   = (uModel * vec4(aNormal, 0.0)).xyz;
+                vPosition = (uModel * vec4(aPosition, 1.0)).xyz;
+                gl_Position = uVP * vec4(vPosition, 1.0);
+            }
+        </script>
+        <script type = "x-shader/x-vertex" id = "overlay-fs">
+            precision mediump float;
+            
+            const vec3  LIGHT_DIRECTION = vec3(-0.52, 0.66, -0.52);
+            const vec4  LIGHT_DIFFUSE = vec4(1.0, 1.0, 1.0, 1.0);
+            
+            uniform vec3 uPosition;
+                        
+            varying vec3 vPosition;
+            varying vec3 vNormal;
+            varying vec3 vUV;
+            
+            void main(void) {
+                vec4 color = vec4(0.0);
+                float angle;
+                                
+                angle = max(dot(vNormal, LIGHT_DIRECTION), 0.0);                                  
+                gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0) * LIGHT_DIFFUSE * angle;
+            }
+        </script>
+    </head>
+    <body>
+        <div id = "bq-holder">
+            <canvas id = "bq-canvas"></canvas>
+        </div>
+        <div id = "bq-ui">
+            <div id = "bq-loading">
+                Loading Resources: <span id = "bq-rs-loaded"></span>/<span id = "bq-rs-count"></span>
+                <div id = "bq-rs-progh"><div id = "bq-rs-prog"></div></div>
+            </div>
+            <div id = "bq-win">
+                <div class = "text"></div><br />
+                <a href = ""> Restart? </a>
+            </div>
+            <div id = "bq-timer"> </div>
+            <div id = "bq-dead"> </div>
+        </div>
+        <script type = "text/javascript"> BQ.Init() </script>
+    </body>
+</html>
