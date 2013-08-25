@@ -11,7 +11,7 @@ var BQ = BQ || {};
 {
     // Global constants
     BQ.CELL_SIZE        = 0.5;
-    BQ.SEED             = 0xdeadbeef;
+    BQ.SEED             = Math.floor(Math.random() * 1000);
     BQ.SCALE            = 10.0;
     BQ.MAP_HEIGHT       = 5.0;
     BQ.CHUNK_INDICES    = new Array(((1 << 5) - 1) * ((1 << 5) - 1) * 6);
@@ -80,7 +80,7 @@ var BQ = BQ || {};
         var gl = BQ.gl;
         var count = 0, item;
                 
-        for (var i = 0; i < 4; ++i) {
+        for (var i = 0; i < 5; ++i) {
             item = {};
             item.model = "sphere";
             item.position = [
@@ -100,7 +100,7 @@ var BQ = BQ || {};
             objects.push(item);
         }
         
-        for (var i = 0; i < 5; ++i) {        
+        for (var i = 0; i < 4; ++i) {        
             item = new BQ.Particles();  
             item.time     = [500.0, 1000.0];
             item.vel      = [[-0.005, 0.002], [0.009, 0.006]];

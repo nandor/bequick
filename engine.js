@@ -8,8 +8,8 @@ var BQ = BQ || {};
 {    
     // Assets
     var SHADERS     = ["terrain", "particle", "object", "overlay"];
-    var TEXTURES    = ["terrain", "particle"];
-    var SOUNDS      = ["pick"];   
+    var TEXTURES    = ["terrain", "particle", "spark"];
+    var SOUNDS      = ["pick", "morph", "die", "shepard"];   
     var OBJECTS     = ["sphere", "arrow"];
     
     // Local configuration
@@ -38,19 +38,25 @@ var BQ = BQ || {};
     
     // Game
     var moveSpeed   = 0.15;
+    var enemySpeed  = 0.11;
     var win         = false;
+    var enemyMove   = false;
     var beginTime   = (new Date()).getTime();
     var endTime     = beginTime + 10000;
     
     var keyState    = {};
     var player      = null;
     var target      = null;
+    var enemy       = null;
     
-    BQ.Light = [0, BQ.GetHeight(0, 0) + 3.0, 0];
-    BQ.Player = [0, BQ.GetHeight(0, 0), 0];
-    BQ.Camera = [BQ.Player[0] - 4.0, BQ.Player[1] + 8.0, BQ.Player[2] - 4.0];
-    BQ.Target = [Math.random() * 500.0 - 250.0, 0.0, Math.random() * 500.0 - 250.0];
-    BQ.Target[1] = BQ.GetHeight(BQ.Target[0], BQ.Target[2]);
+    BQ.Light        = [0, BQ.GetHeight(0, 0) + 3.0, 0];
+    BQ.Player       = [0, BQ.GetHeight(0, 0), 0];
+    BQ.Camera       = [BQ.Player[0] - 4.0, BQ.Player[1] + 8.0, BQ.Player[2] - 4.0];
+    BQ.Target       = [Math.random() * 500.0 - 250.0, 0.0, Math.random() * 500.0 - 250.0];
+    BQ.Target[1]    = BQ.GetHeight(BQ.Target[0], BQ.Target[2]);
+    BQ.Enemy        = [Math.random() * 10.0 - 5.0, 0.0, Math.random() * 10.0 - 5.0];
+    BQ.Enemy[1]     = BQ.GetHeight(BQ.Enemy[0], BQ.Enemy[2]);
+    BQ.Rotation     = -Math.atan2(BQ.Target[2] - BQ.Player[2], BQ.Target[0] - BQ.Player[0]) + Math.PI / 2.0;
     
     var updateLoader = function ()
     {    
@@ -170,48 +176,40 @@ var BQ = BQ || {};
             
             // Process input
             if (keyState['A']) {
-                d[0] += 0.1;
-                d[2] -= 0.1;
+                enemyMove = true;
+                d[0] += Math.sin(BQ.Rotation + Math.PI / 2);
+                d[2] += Math.cos(BQ.Rotation + Math.PI / 2);
             }
             
             if (keyState['D']) {
-                d[0] -= 0.1;
-                d[2] += 0.1;
+                enemyMove = true;
+                d[0] += Math.sin(BQ.Rotation - Math.PI / 2);
+                d[2] += Math.cos(BQ.Rotation - Math.PI / 2);
             }
 
             if (keyState['W']) {
-                d[0] += 0.1;
-                d[2] += 0.1;
+                enemyMove = true;
+                d[0] += Math.sin(BQ.Rotation);
+                d[2] += Math.cos(BQ.Rotation);
             }
 
             if (keyState['S']) {
-                d[0] -= 0.1;
-                d[2] -= 0.1;
+                enemyMove = true;
+                d[0] -= Math.sin(BQ.Rotation);
+                d[2] -= Math.cos(BQ.Rotation);
             }
             
-            // Move the player
-            vec3.normalize(d, d);
-            vec3.scale(d, d, moveSpeed);
-            vec3.add(BQ.Player, BQ.Player, d);            
-            BQ.Player[1] = BQ.GetHeight(BQ.Player[0], BQ.Player[2]);
-               
-            // Check for win condition
-            var d = vec3.create();
-            vec3.sub(d, BQ.Target, BQ.Player);
-            if (vec3.length(d) < 0.5) {
-                var str, tt;
-                
-                win = true;
-                tt = (time - beginTime) / 1000;
-                str = Math.floor(tt / 60) + " min " + tt % 60 + " s";
-                
-                $("#bq-win > .text").html("You have just won! <br />" + str);
-                $("#bq-win").show();
+            if (keyState['Q']) {
+                BQ.Rotation += 0.1;
+            }
+            
+            if (keyState['E']) {
+                BQ.Rotation -= 0.1;
             }
 
             // Update timers            
             tt = (time - beginTime) / 1000;
-            str = Math.floor(tt / 60) + " min " + tt % 60 + " s";
+            str = Math.floor(tt / 60) + " min " + Math.floor(tt % 60) + " s";
             $("#bq-timer").text(str);
                         
             tt = endTime - time;
@@ -223,9 +221,47 @@ var BQ = BQ || {};
                 $("#bq-win").show();
             }
             
+            
+            // Move the player
+            vec3.normalize(d, d);
+            vec3.scale(d, d, moveSpeed);
+            vec3.add(BQ.Player, BQ.Player, d);            
+            BQ.Player[1] = BQ.GetHeight(BQ.Player[0], BQ.Player[2]);
+            
+            // Move the enemy
+            if (enemyMove)
+            {
+                vec3.sub(d, BQ.Player, BQ.Enemy);
+                if (vec3.length(d) < 0.4) {
+                    win = true;
+                    $("#bq-dead").hide();
+                    $("#bq-win > .text").html("Gotcha! <br />" + str);
+                    $("#bq-win").show();
+                }
+            
+                vec3.normalize(d, d);
+                vec3.scale(d, d, enemySpeed);
+                vec3.add(BQ.Enemy, BQ.Enemy, d);
+                BQ.Enemy[1] = BQ.GetHeight(BQ.Enemy[0], BQ.Enemy[2]);
+            }
+            
+            // Check for win condition
+            vec3.create();
+            vec3.sub(d, BQ.Target, BQ.Player);
+            if (vec3.length(d) < 0.5) {
+                var str, tt;
+                
+                win = true;
+                tt = (time - beginTime) / 1000;
+                str = Math.floor(tt / 60) + " min " + tt % 60 + " s";
+                
+                $("#bq-win > .text").html("You have just won! <br />" + str);
+                $("#bq-win").show();
+            }
+            
             // Check for collisions   
             for (var x = cx - 1; x <= cx + 1; ++x) {
-                for (var y = cy - 1; y < cy + 1; ++y) {
+                for (var y = cy - 1; y <= cy + 1; ++y) {
                     chunk = BQ.GetChunk(x, y);        
                     for (var i = chunk.objects.length - 1; i >= 0; --i) {
                         d = vec3.create();
@@ -235,12 +271,14 @@ var BQ = BQ || {};
                             if (c[0] == player.color[0] && c[1] == player.color[1] && c[2] == player.color[2]) {
                                 endTime = time + 10000;
                                 chunk.objects.splice(i, 1);
+                                BQ.Sounds["pick"].play();
                                 break;
                             } else {
                                 win = true;
                                 $("#bq-dead").hide();
                                 $("#bq-win > .text").html("Ups! Wrong color <br />" + str);
                                 $("#bq-win").show();
+                                BQ.Sounds["die"].play();
                             }
                         }
                     }
@@ -249,6 +287,7 @@ var BQ = BQ || {};
                         d = vec3.create();
                         d = vec3.sub(d, BQ.Player, chunk.particles[i].position);
                         if (Math.sqrt(d[0] * d[0] + d[2] * d[2]) < 0.75) {
+                            BQ.Sounds["morph"].play();
                             player.color = chunk.particles[i].color;
                             break;
                         }
@@ -258,7 +297,7 @@ var BQ = BQ || {};
         }
         
         // Prepare data for the renderer
-        vec3.add(BQ.Camera, BQ.Player, [-4, 5, -4]);
+        vec3.add(BQ.Camera, BQ.Player, [-4 * Math.sin(BQ.Rotation), 5, -4 * Math.cos(BQ.Rotation)]);
         vec3.add(BQ.Light, BQ.Player, [0, 3, 0]);
         
         mat4.lookAt(uView, BQ.Camera, BQ.Player, [0, 1, 0]);
@@ -274,6 +313,7 @@ var BQ = BQ || {};
         
         player.Update(up, right);
         target.Update(up, right);
+        enemy.Update(up, right);
         for (var x = cx - 1; x <= cx + 3; ++x) {
             for (var y = cy - 1; y <= cy + 2; ++y) {
                 BQ.UpdateChunk(x, y, up, right);
@@ -352,7 +392,12 @@ var BQ = BQ || {};
         mat4.identity(uModel);
         mat4.translate(uModel, uModel, BQ.Target);
         gl.uniformMatrix4fv(BQ.Shaders["particle"].param["uModel"], false, uModel);
-        target.Render(); 
+        target.Render();  
+        
+        mat4.identity(uModel);
+        mat4.translate(uModel, uModel, BQ.Enemy);
+        gl.uniformMatrix4fv(BQ.Shaders["particle"].param["uModel"], false, uModel);
+        enemy.Render(); 
         
         for (var x = cx - 1; x <= cx + 3; ++x) {
             for (var y = cy - 1; y <= cy + 2; ++y) {
@@ -370,7 +415,7 @@ var BQ = BQ || {};
         
         mat4.identity(uModel);
         mat4.translate(uModel, uModel, [0, -2, -6]); 
-        mat4.rotateY(uModel, uModel, -angle - 3.0 * Math.PI / 4);      
+        mat4.rotateY(uModel, uModel, - angle - BQ.Rotation - Math.PI / 2.0);      
         
         gl.clear(gl.DEPTH_BUFFER_BIT);
         gl.enableVertexAttribArray(0);
@@ -438,6 +483,13 @@ var BQ = BQ || {};
         player.vel      = [[-0.005, 0.002], [0.009, 0.006]];
         player.max      = 20;
         
+        enemy = new BQ.Particles();        
+        enemy.color    = [1, 1, 1, 1];
+        enemy.time     = [1000.0, 1000.0];
+        enemy.vel      = [[-0.005, 0.05], [0.009, 0.05]];
+        enemy.max      = 100;
+        enemy.texture  = "spark"
+                
         target = new BQ.Particles();
         target.color    = [1.0, 0.5, 0.0, 1.0];
         target.time     = [1000.0, 1400.0];
@@ -465,7 +517,7 @@ var BQ = BQ || {};
                 default: keyState[String.fromCharCode(evt.keyCode)] = true;
             }           
         });
-                
+                        
         // Main loop
         (function loop () {
             canvas.width = $("#bq-holder").width();
